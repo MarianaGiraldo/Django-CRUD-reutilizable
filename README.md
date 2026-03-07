@@ -1,1 +1,1 @@
-"# Django-CRUD-reutilizable" 
+# Django-CRUD-reutilizable
