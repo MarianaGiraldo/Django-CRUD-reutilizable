@@ -62,7 +62,29 @@
                 {% if is_create %}Crear{% else %}Guardar cambios{% endif %}
             </button>
             <a href="{% url 'notes:list' %}" class="btn btn-outline-secondary">Cancelar</a>
+            {% if not is_create %}
+            <button
+                type="button"
+                class="btn btn-outline-danger ms-auto delete-btn"
+                data-url="{% url 'notes:delete' object.pk %}"
+                data-titulo="{{ object.titulo|escapejs }}"
+                title="Eliminar anotación"
+            ><i class="bi bi-trash3"></i></button>
+            {% endif %}
         </div>
+
+{% if not is_create %}
+<script>
+document.querySelector('.delete-btn').addEventListener('click', function() {
+    if (!confirm(`¿Eliminar "${this.dataset.titulo}"? Esta acción no se puede deshacer.`)) return;
+    const csrf = document.cookie.match(/csrftoken=([^;]+)/);
+    fetch(this.dataset.url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrf ? csrf[1] : '', 'Content-Type': 'application/json' }
+    }).then(() => { window.location.href = "{% url 'notes:list' %}"; });
+});
+</script>
+{% endif %}
     </form>
     </div>
     </div>

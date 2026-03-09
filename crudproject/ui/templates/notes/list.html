@@ -100,13 +100,21 @@
                 {{ nota.detalle|default:""|truncatewords:25 }}
             </p>
 
-            {# Pie: autor + fecha + botón editar #}
+            {# Pie: autor + fecha + botones editar / eliminar #}
             <div class="mt-2 d-flex justify-content-between align-items-end">
                 <small class="text-muted">
                     <!-- {{ nota.created_by }}<br> -->
                     {{ nota.created_at|date:"d/m/Y" }}
                 </small>
-                <a href="{% url 'notes:edit' nota.pk %}" class="btn btn-sm btn-outline-secondary">Editar</a>
+                <div class="d-flex gap-1">
+                    <a href="{% url 'notes:edit' nota.pk %}" class="btn btn-sm btn-outline-secondary">Editar</a>
+                    <button
+                        class="btn btn-sm btn-outline-danger delete-btn"
+                        data-url="{% url 'notes:delete' nota.pk %}"
+                        data-titulo="{{ nota.titulo|escapejs }}"
+                        title="Eliminar anotación"
+                    ><i class="bi bi-trash3"></i></button>
+                </div>
             </div>
 
         </div>
@@ -121,21 +129,35 @@
 </div>
 {% endif %}
 
-{# --- Script toggle activo/inactivo (sin recarga de página) --- #}
+{# --- Scripts de acción sin recarga de página --- #}
 <script>
+// Obtiene el token CSRF de la cookie (requerido por Django para POST)
+function getCsrf() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+}
+
+// Toggle activo/inactivo
 document.querySelectorAll('.toggle-btn').forEach(btn => {
     btn.addEventListener('click', function() {
-        const url  = this.dataset.url;
-        // Incluir el token CSRF de la cookie para la petición POST
-        const csrf = document.cookie.match(/csrftoken=([^;]+)/);
-        const token = csrf ? csrf[1] : '';
-
-        fetch(url, {
+        fetch(this.dataset.url, {
             method: 'POST',
-            headers: { 'X-CSRFToken': token, 'Content-Type': 'application/json' }
+            headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' }
         })
         .then(r => r.json())
-        .then(() => location.reload());  // Recarga para reflejar nuevo estado
+        .then(() => location.reload());
+    });
+});
+
+// Eliminar anotación con confirmación
+document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        if (!confirm(`¿Eliminar "${this.dataset.titulo}"? Esta acción no se puede deshacer.`)) return;
+        fetch(this.dataset.url, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' }
+        })
+        .then(() => location.reload());
     });
 });
 </script>

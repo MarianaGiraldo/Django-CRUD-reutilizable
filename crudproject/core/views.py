@@ -299,6 +299,33 @@ class BaseCrudView(LoginRequiredMixin, View):
 		context = self.get_context_data(request, form=form, object=obj, is_create=is_create)
 		return render(request, self.form_template, context)
 
+	def delete(self, request, pk):
+		"""
+		Elimina el objeto identificado por 'pk' tras recibir un POST de confirmación.
+		Registra el evento ELIMINAR en auditoría y redirige al listado.
+		"""
+		obj = get_object_or_404(self.model, pk=pk)
+
+		# Capturar datos para auditoría ANTES de borrar el objeto
+		obj_id    = obj.pk
+		obj_repr  = str(obj)
+		modelo_id = f"{self.model._meta.app_label}.{self.model.__name__}"
+
+		obj.delete()
+
+		# Registrar en auditoría usando los kwargs directos (obj ya no existe en BD)
+		registrar_cambio(
+			request.user,
+			'ELIMINAR',
+			cambios={'objeto_eliminado': obj_repr},
+			modelo=modelo_id,
+			objeto_id=obj_id,
+		)
+
+		# Usar get_success_url para respetar cualquier override de la subclase.
+		# Se pasa None porque el objeto ya fue eliminado y no existe en BD.
+		return redirect(self.get_success_url(None))
+
 	def toggle(self, request, pk):
 		"""
 		Activa o desactiva el objeto identificado por 'pk'.
@@ -378,12 +405,18 @@ class BaseCrudView(LoginRequiredMixin, View):
 			def post(self, request, pk, *args, **kwargs):
 				return self.toggle(request, pk)
 
+		class DeleteView(cls):
+			"""Vista de eliminación. Solo acepta POST para evitar borrados por GET."""
+			def post(self, request, pk, *args, **kwargs):
+				return self.delete(request, pk)
+
 		return [
 			path('', ListView.as_view(), name='list'),
 			path('json/', JsonView.as_view(), name='json'),
 			path('add/', AddView.as_view(), name='add'),
 			path('<int:pk>/', cls.as_view(), name='edit'),
 			path('<int:pk>/toggle/', ToggleView.as_view(), name='toggle'),
+			path('<int:pk>/delete/', DeleteView.as_view(), name='delete'),
 		]
 
 	def get_success_url(self, obj):

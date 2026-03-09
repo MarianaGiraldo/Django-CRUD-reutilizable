@@ -65,7 +65,7 @@ def build_cambios_edit(form, original):
     return cambios
 
 
-def registrar_cambio(usuario, accion, obj, cambios=None):
+def registrar_cambio(usuario, accion, obj=None, cambios=None, *, modelo=None, objeto_id=None):
     """
     Persiste un registro de auditoría en la tabla ControlCambio.
 
@@ -74,18 +74,24 @@ def registrar_cambio(usuario, accion, obj, cambios=None):
     pero si en el futuro core.models importara algo de audit, lo sería.
 
     Parámetros:
-        usuario -- instancia de User autenticado en el request
-        accion  -- string corto: 'CREAR', 'EDITAR', 'ACTIVAR', 'INACTIVAR', 'PUBLICAR'
-        obj     -- instancia del modelo auditado; debe tener .pk asignado
-        cambios -- dict {campo: {anterior, nuevo}}; si es None se guarda {}
+        usuario   -- instancia de User autenticado en el request
+        accion    -- string corto: 'CREAR', 'EDITAR', 'ACTIVAR', 'INACTIVAR', 'PUBLICAR', 'ELIMINAR'
+        obj       -- instancia del modelo auditado; debe tener .pk asignado.
+                     Puede ser None si se pasan modelo y objeto_id directamente.
+        cambios   -- dict {campo: {anterior, nuevo}}; si es None se guarda {}
+        modelo    -- override del identificador de modelo (e.g. 'notes.Anotacion')
+        objeto_id -- override del ID cuando obj ya no existe en BD (delete)
     """
     from core.models import ControlCambio  # Importación diferida intencional
+
+    if obj is not None:
+        modelo    = modelo    or f"{obj._meta.app_label}.{obj.__class__.__name__}"
+        objeto_id = objeto_id or obj.pk
 
     ControlCambio.objects.create(
         usuario=usuario,
         accion=accion,
-        # Identificador legible del modelo: "notes.Anotacion", "blog.Post", etc.
-        modelo=f"{obj._meta.app_label}.{obj.__class__.__name__}",
-        objeto_id=obj.pk,
+        modelo=modelo,
+        objeto_id=objeto_id,
         cambios=cambios or {},
     )

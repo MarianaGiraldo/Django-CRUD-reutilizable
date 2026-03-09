@@ -18,6 +18,7 @@ class ControlCambio(models.Model):
         ('ACTIVAR',   'Activar'),
         ('INACTIVAR', 'Inactivar'),
         ('PUBLICAR',  'Publicar'),   # Acción de dominio específica usada por notas
+        ('ELIMINAR',  'Eliminar'),
     )
 
     # FK al usuario; SET_NULL para no perder el historial si el usuario se elimina
