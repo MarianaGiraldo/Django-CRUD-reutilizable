@@ -2,6 +2,11 @@
 
 Proyecto Django que demuestra el diseño de un **motor CRUD reutilizable** basado en herencia de clases, con módulos de negocio conectados por herencia/configuración y separación limpia de capas.
 
+
+Lista principal de anotaciones con filtros y acciones rápidas (editar, activar/inactivar, eliminar). 
+Ver en /notas/ después de correr el proyecto.
+![Lista principal](image.png)
+
 ---
 
 ## Cómo correr el proyecto
