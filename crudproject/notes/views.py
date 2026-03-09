@@ -1,6 +1,7 @@
 import logging
 from django.core.exceptions import ValidationError
 from core.views import BaseCrudView
+from core.audit import registrar_cambio
 from .models import Anotacion
 from .forms import AnotacionForm
 
@@ -34,8 +35,19 @@ class AnotacionCrudView(BaseCrudView):
 				)
 
 	def after_save(self, request, obj, form, is_create, original=None):
-		# AUDITORÍA: Registrar evento si pasa a PUBLICADO
+		# AUDITORÍA DE DOMINIO: si la anotación acaba de pasar a PUBLICADO,
+		# registramos un evento específico además del CREAR/EDITAR que graba la base.
 		was_published = original['estado'] == 'PUBLICADO' if original else False
 		if obj.estado == 'PUBLICADO' and not was_published:
-			logger.info(f"AUDITORÍA: El usuario {request.user} publicó la anotación ID {obj.id}")
+			logger.info(
+				"AUDITORÍA: El usuario %s publicó la anotación ID %s",
+				request.user, obj.id,
+			)
+			# Registro explícito con acción 'PUBLICAR' en la tabla de auditoría
+			registrar_cambio(
+				request.user,
+				'PUBLICAR',
+				obj,
+				cambios={'estado': {'anterior': original['estado'] if original else None, 'nuevo': 'PUBLICADO'}},
+			)
 			print(f"--- EVENTO: Anotación '{obj.titulo}' ha sido publicada ---")

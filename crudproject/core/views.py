@@ -4,6 +4,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
 from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.contrib.auth.mixins import LoginRequiredMixin
+from core.audit import registrar_cambio, build_cambios_create, build_cambios_edit
 
 class BaseCrudView(LoginRequiredMixin, View):
 	"""
@@ -282,6 +283,16 @@ class BaseCrudView(LoginRequiredMixin, View):
 			form.save_m2m()  # Guardar relaciones ManyToMany si las hubiera
 
 			self.after_save(request, instance, form, is_create, original=original)
+
+			# Auditoría automática: registrar CREAR o EDITAR en ControlCambio
+			if is_create:
+				cambios = build_cambios_create(form)
+				accion  = 'CREAR'
+			else:
+				cambios = build_cambios_edit(form, original)
+				accion  = 'EDITAR'
+			registrar_cambio(request.user, accion, instance, cambios)
+
 			return redirect(self.get_success_url(instance))
 
 		# Formulario inválido: re-renderizar con errores
@@ -307,9 +318,20 @@ class BaseCrudView(LoginRequiredMixin, View):
 		obj.save()
 
 		self.after_toggle(request, obj)
+
+		# Auditoría automática: ACTIVAR o INACTIVAR según el nuevo valor
+		nuevo_valor = getattr(obj, field)
+		accion = 'ACTIVAR' if nuevo_valor else 'INACTIVAR'
+		registrar_cambio(
+			request.user,
+			accion,
+			obj,
+			cambios={field: {'anterior': current, 'nuevo': nuevo_valor}},
+		)
+
 		return JsonResponse({
 			"success": True,
-			field: getattr(obj, field)
+			field: nuevo_valor
 		})
 
 	@classmethod
