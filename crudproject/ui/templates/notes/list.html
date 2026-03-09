@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+
+{% block title %}Anotaciones{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Colores de post-it según estado */
+    .card-borrador  { background-color: #fff9c4; border-left: 5px solid #f9a825; }
+    .card-publicado { background-color: #c8e6c9; border-left: 5px solid #2e7d32; }
+    .card-archivado { background-color: #eeeeee; border-left: 5px solid #757575; }
+
+    /* Efecto sombra estilo post-it */
+    .postit {
+        border-radius: 2px;
+        box-shadow: 3px 3px 8px rgba(0,0,0,0.2);
+        min-height: 160px;
+        transition: transform 0.15s;
+    }
+    .postit:hover { transform: rotate(-1deg) scale(1.02); }
+
+    /* Badge de estado dentro de la card */
+    .badge-borrador  { background-color: #f9a825; color: #000; }
+    .badge-publicado { background-color: #2e7d32; color: #fff; }
+    .badge-archivado { background-color: #757575; color: #fff; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Anotaciones</h2>
+    <a href="{% url 'notes:add' %}" class="btn btn-primary">+ Nueva anotación</a>
+</div>
+
+{# --- Filtros y búsqueda --- #}
+<form method="get" class="row g-2 mb-4">
+    {# Búsqueda por título #}
+    <div class="col-sm-6 col-md-4">
+        <input
+            type="text"
+            name="q"
+            value="{{ request.GET.q }}"
+            placeholder="Buscar por título…"
+            class="form-control"
+        >
+    </div>
+
+    {# Filtro por estado #}
+    <div class="col-sm-4 col-md-3">
+        <select name="estado" class="form-select">
+            <option value="">Todos los estados</option>
+            <option value="BORRADOR"  {% if request.GET.estado == 'BORRADOR'  %}selected{% endif %}>Borrador</option>
+            <option value="PUBLICADO" {% if request.GET.estado == 'PUBLICADO' %}selected{% endif %}>Publicado</option>
+            <option value="ARCHIVADO" {% if request.GET.estado == 'ARCHIVADO' %}selected{% endif %}>Archivado</option>
+        </select>
+    </div>
+
+    {# Filtro por activo/inactivo #}
+    <div class="col-sm-4 col-md-3">
+        <select name="activo" class="form-select">
+            <option value="">Activo e inactivo</option>
+            <option value="True"  {% if request.GET.activo == 'True'  %}selected{% endif %}>Solo activos</option>
+            <option value="False" {% if request.GET.activo == 'False' %}selected{% endif %}>Solo inactivos</option>
+        </select>
+    </div>
+
+    <div class="col-auto">
+        <button type="submit" class="btn btn-secondary">Filtrar</button>
+        <a href="{% url 'notes:list' %}" class="btn btn-outline-secondary">Limpiar</a>
+    </div>
+</form>
+
+{# --- Tablero de cards --- #}
+{% if object_list %}
+<div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3">
+    {% for nota in object_list %}
+    {% with estado_lower=nota.estado|lower %}
+    <div class="col">
+        <div class="card postit card-{{ estado_lower }} p-3 h-100">
+
+            {# Cabecera: badge de estado + toggle activo #}
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="badge badge-{{ estado_lower }}">
+                    {{ nota.get_estado_display }}
+                </span>
+
+                {# Toggle activo/inactivo #}
+                <button
+                    class="btn btn-sm {% if nota.activo %}btn-outline-success{% else %}btn-outline-danger{% endif %} toggle-btn"
+                    data-url="{% url 'notes:toggle' nota.pk %}"
+                    data-pk="{{ nota.pk }}"
+                    title="{% if nota.activo %}Inactivar{% else %}Activar{% endif %}"
+                >
+                    {% if nota.activo %}&#10003; Activo{% else %}&#10007; Inactivo{% endif %}
+                </button>
+            </div>
+
+            {# Título y detalle #}
+            <h6 class="card-title fw-bold">{{ nota.titulo }}</h6>
+            <p class="card-text text-muted small flex-grow-1">
+                {{ nota.detalle|default:""|truncatewords:25 }}
+            </p>
+
+            {# Pie: autor + fecha + botón editar #}
+            <div class="mt-2 d-flex justify-content-between align-items-end">
+                <small class="text-muted">
+                    <!-- {{ nota.created_by }}<br> -->
+                    {{ nota.created_at|date:"d/m/Y" }}
+                </small>
+                <a href="{% url 'notes:edit' nota.pk %}" class="btn btn-sm btn-outline-secondary">Editar</a>
+            </div>
+
+        </div>
+    </div>
+    {% endwith %}
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-muted py-5">
+    <p class="fs-5">No hay anotaciones que coincidan con los filtros.</p>
+    <a href="{% url 'notes:add' %}" class="btn btn-primary">Crear la primera</a>
+</div>
+{% endif %}
+
+{# --- Script toggle activo/inactivo (sin recarga de página) --- #}
+<script>
+document.querySelectorAll('.toggle-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const url  = this.dataset.url;
+        // Incluir el token CSRF de la cookie para la petición POST
+        const csrf = document.cookie.match(/csrftoken=([^;]+)/);
+        const token = csrf ? csrf[1] : '';
+
+        fetch(url, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': token, 'Content-Type': 'application/json' }
+        })
+        .then(r => r.json())
+        .then(() => location.reload());  // Recarga para reflejar nuevo estado
+    });
+});
+</script>
+{% endblock %}

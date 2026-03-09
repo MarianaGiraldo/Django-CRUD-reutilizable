@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% load widget_tweaks %}
+
+{% block title %}{% if is_create %}Nueva anotación{% else %}Editar anotación{% endif %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-md-7 col-lg-6">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="mb-0">
+            {% if is_create %}Nueva anotación{% else %}Editar: <em>{{ object.titulo }}</em>{% endif %}
+        </h3>
+        <a href="{% url 'notes:list' %}" class="btn btn-outline-secondary btn-sm">← Volver</a>
+    </div>
+
+    {# Errores generales del formulario (non-field errors) #}
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger">
+        {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+    <div class="card-body">
+    <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% for field in form %}
+        <div class="mb-3">
+            <label for="{{ field.id_for_label }}" class="form-label fw-semibold">
+                {{ field.label }}
+                {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
+            </label>
+
+            {% if field.field.disabled %}
+            {# Campo bloqueado por regla de negocio (título en PUBLICADO) #}
+            <div class="input-group">
+                {% render_field field class="form-control" %}
+                <span class="input-group-text text-muted" title="No editable tras publicar">🔒</span>
+            </div>
+            <div class="form-text text-warning">
+                No se puede cambiar el título de una anotación publicada.
+            </div>
+            {% elif field.name == 'estado' %}
+            {% render_field field class="form-select" %}
+            {% elif field.name == 'detalle' %}
+            {% render_field field class="form-control" rows="4" %}
+            {% else %}
+            {% render_field field class="form-control" %}
+            {% endif %}
+
+            {# Errores del campo #}
+            {% for error in field.errors %}
+            <div class="text-danger small mt-1">{{ error }}</div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+
+        <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">
+                {% if is_create %}Crear{% else %}Guardar cambios{% endif %}
+            </button>
+            <a href="{% url 'notes:list' %}" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+    </div>
+    </div>
+
+</div>
+</div>
+{% endblock %}
