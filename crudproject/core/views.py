@@ -1,3 +1,4 @@
+import re
 from django.views import View
 from django.http import JsonResponse, HttpResponseForbidden
 from django.shortcuts import render, get_object_or_404, redirect
@@ -51,6 +52,13 @@ class BaseCrudView(LoginRequiredMixin, View):
 
 	# Nombre de la URL de éxito (no se usa directamente; se delega a get_success_url)
 	success_url_name = None
+
+	# Prefijo de ruta para sub-recursos anidados. Se añade tal cual al inicio de
+	# cada path() generado por get_urls(). Ejemplos:
+	#   None                      → recurso raíz (sin prefijo)
+	#   '<int:anotacion_pk>/'     → /notas/1/comentarios/
+	#   'n/<int:anotacion_pk>/'   → /notas/n/1/comentarios/
+	url_prefix = None
 
 	def dispatch(self, request, *args, **kwargs):
 		"""
@@ -364,20 +372,15 @@ class BaseCrudView(LoginRequiredMixin, View):
 	@classmethod
 	def get_urls(cls):
 		"""
-		Genera y retorna la lista de URL patterns del módulo.
-		Centraliza el registro de rutas para evitar que la subclase tenga que
-		definir paths manualmente en su urls.py.
-
-		Rutas generadas:
-		  ''              -> ListView   (GET listado)
-		  'json/'         -> JsonView   (GET datos JSON con filtros)
-		  'add/'          -> AddView    (GET/POST crear)
-		  '<pk>/'         -> cls        (GET/POST editar)
-		  '<pk>/toggle/'  -> ToggleView (POST activar/inactivar)
-
-		Patrón: cada vista interna hereda de cls para reutilizar toda la configuración.
+		Genera la lista de URL patterns del módulo. Si url_prefix está definido,
+		se antepone a cada ruta para soportar sub-recursos anidados.
+		Cada vista interna hereda de cls para reutilizar toda la configuración.
 		"""
 		from django.urls import path
+
+		# url_prefix se usa directamente como segmento de ruta.
+		# None o cadena vacía → recurso raíz sin prefijo.
+		px = cls.url_prefix or ''
 
 		class ListView(cls):
 			"""Vista de listado; no requiere override específico."""
@@ -411,15 +414,25 @@ class BaseCrudView(LoginRequiredMixin, View):
 				return self.delete(request, pk)
 
 		return [
-			path('', ListView.as_view(), name='list'),
-			path('json/', JsonView.as_view(), name='json'),
-			path('add/', AddView.as_view(), name='add'),
-			path('<int:pk>/', cls.as_view(), name='edit'),
-			path('<int:pk>/toggle/', ToggleView.as_view(), name='toggle'),
-			path('<int:pk>/delete/', DeleteView.as_view(), name='delete'),
+			path(f'{px}',                  ListView.as_view(),  name='list'),
+			path(f'{px}json/',             JsonView.as_view(),  name='json'),
+			path(f'{px}add/',              AddView.as_view(),   name='add'),
+			path(f'{px}<int:pk>/',         cls.as_view(),       name='edit'),
+			path(f'{px}<int:pk>/toggle/',  ToggleView.as_view(), name='toggle'),
+			path(f'{px}<int:pk>/delete/',  DeleteView.as_view(), name='delete'),
 		]
 
 	def get_success_url(self, obj):
-		"""URL a la que redirigir tras guardar. Por defecto va al listado del módulo."""
+		"""
+		URL a la que redirigir tras guardar o eliminar.
+		Extrae automáticamente los parámetros capturados en url_prefix
+		(e.g. '<int:anotacion_pk>/' → {'anotacion_pk': valor}) y los pasa
+		al reverse() para que la redirección apunte al listado correcto.
+		Segmentos estáticos (e.g. 'n/') no producen kwargs adicionales.
+		"""
+		params = re.findall(r'<(?:\w+:)?(\w+)>', self.url_prefix or '')
+		kwargs = {p: self.kwargs[p] for p in params if p in self.kwargs}
+		if kwargs:
+			return reverse(f'{self.model._meta.app_label}:list', kwargs=kwargs)
 		return reverse(f'{self.model._meta.app_label}:list')
 
